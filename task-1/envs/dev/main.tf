@@ -22,3 +22,10 @@ module "vm" {
   image_family = var.image_family
   ssh_pubkey = var.ssh_pubkey
 }
+
+output "vm_ip_address" {
+  value = module.vm.vm_ip_address
+}
+output "vm_disk_id" {
+  value = module.vm.vm_disk_id
+}
