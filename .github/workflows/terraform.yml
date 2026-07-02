@@ -69,7 +69,7 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
     - name: Terraform Init
-      run: terraform init -input=false
+      run: terraform init -input=false -backend-config="access_key=$ACCESS_KEY" -backend-config="secret_key=$SECRET_KEY" -backend-config=backend.hcl
     - name: Download plan artifact
       uses: actions/download-artifact@v4
       with:
