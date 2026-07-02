@@ -1,0 +1,79 @@
+name: Terraform CI/CD
+
+on:
+  push:
+    branches: [ future-2.0 ]
+    paths:
+    - 'task-2/**'
+  workflow_dispatch:
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: "1.9.5"
+  YC_TOKEN: ${{ secrets.YC_TOKEN }}
+  YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
+  YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
+  ACCESS_KEY: ${{ secrets.ACCESS_KEY }}
+  SECRET_KEY: ${{ secrets.SECRET_KEY }}
+
+jobs:
+  plan:
+    name: Plan - ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, stage, prod]
+    defaults:
+      run:
+        working-directory: task-2/envs/${{ matrix.env }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+    - name: Terraform Init
+      run: terraform init -input=false -backend-config="access_key=$ACCESS_KEY" -backend-config="secret_key=$SECRET_KEY" -backend-config=backend.hcl
+    - name: Terraform Plan
+      run: terraform plan -input=false -out=terraform-plan
+    - name: Upload plan artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-plan-${{ matrix.env }}
+        path: task-2/envs/${{ matrix.env }}/terraform-plan
+        retention-days: 1
+
+  apply:
+    name: Apply - ${{ matrix.env }}
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        env: [dev, stage, prod]
+    environment: ${{ matrix.env }}
+    defaults:
+      run:
+        working-directory: task-2/envs/${{ matrix.env }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+    - name: Terraform Init
+      run: terraform init -input=false
+    - name: Download plan artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: terraform-plan-${{ matrix.env }}
+        path: task-2/envs/${{ matrix.env }}
+    - name: Terraform Apply
+      run: terraform apply -input=false -auto-approve terraform-plan
