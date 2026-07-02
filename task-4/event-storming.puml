@@ -1,0 +1,159 @@
+@startuml EventStorming
+!startsub DECL
+
+!includeurl https://raw.githubusercontent.com/dreamsinbits/event-storming-puml/refs/heads/main/src/EventStorming.iuml
+
+' Пользователи
+!$operator = 'Оператор МедИС'
+!$medWorker = 'Медицинский работник'
+!$analyst = 'Продуктовый аналитик'
+!$dataSteward = 'Стюард данных'
+
+' Агрегаты
+!$medCard = 'Медицинская Карта Пациента'
+!$caseHistory = 'История Болезни'
+!$study = 'Исследование'
+!$prescription = 'Назначение'
+!$diagnosis = 'Диагноз'
+!$aiInference = 'Результат Вывода ИИ'
+!$invoice = 'Счёт'
+!$payment = 'Платёж'
+!$credit = 'Кредит'
+!$transaction = 'Транзакция'
+!$inventory = 'Позиция ТМЦ'
+!$request = 'Заявка На ТМЦ'
+!$schedule = 'Расписание/Смена'
+!$dataset = 'Отчётный Датасет'
+!$schema = 'Схема Данных'
+!$contract = 'Контракт Данных'
+
+!endsub
+
+!startsub MedicalData
+
+SubDomain('Медицинские данные', MedicalData) {
+
+    Process('Приём и лечение', Treatment) {
+        DomainEvent('Назначение Создано', НазначениеСоздано, $Command('Создать назначение'), $Aggregate($prescription), $User($medWorker))
+        DomainEvent('Медицинская Услуга Оказана', МедУслугаОказана, $Command('Оказать услугу'), $Aggregate($caseHistory), $User($operator))
+
+        НазначениеСоздано - МедУслугаОказана_Input
+    }
+
+    Process('Исследование', Analysing) {
+        DomainEvent('Исследование Начато', ИсследованиеНачато, $Command('Начать исследование'), $Aggregate($study), $User($medWorker))
+        DomainEvent('Исследование Завершено', ИсследованиеЗавершено, $Command('Завершить исследование'), $Aggregate($study), $User($medWorker))
+        DomainEvent('Анализ Обработан', АнализОбработан, $Command('Запустить обработку ИИ'), $Aggregate($aiInference), $System('Службы ИИ'), $Policy('При завершении исследования запустить обработку ИИ'))
+        DomainEvent('ИИ-Рекомендация Готова', ИИРекомендацияГотова, $Aggregate($aiInference), $System('Службы ИИ'), $ReadModel('Оценки, версия модели'))
+        DomainEvent('Диагноз Поставлен', ДиагнозПоставлен, $Command('Поставить диагноз'), $Aggregate($diagnosis), $User($medWorker), $ReadModel('Рекомендация ИИ'))
+
+        ИсследованиеНачато - ИсследованиеЗавершено_Input
+        ИсследованиеЗавершено - АнализОбработан_Input
+        АнализОбработан - ИИРекомендацияГотова_Input
+        ИИРекомендацияГотова - ДиагнозПоставлен_Input
+    }
+
+    Treatment -[hidden]--- Analysing
+}
+
+!endsub
+
+!startsub Fintech
+
+SubDomain('Финтех', Fintech) {
+
+    Process('Финансовые расчёты', Settlements) {
+        DomainEvent('Счёт Выставлен', СчётВыставлен, $Command('Выставить счёт'), $Aggregate($invoice), $Policy('При оказании медицинской услуги выставить счёт'))
+        DomainEvent('Платёж Проведён', ПлатёжПроведён, $Command('Провести платёж'), $Aggregate($payment))
+        DomainEvent('Транзакция Зарегистрирована', ТранзакцияЗарегистрирована, $Command('Зарегистрировать транзакцию'), $Aggregate($transaction), $Policy('При проведении платежа зарегистрировать транзакцию'))
+
+        СчётВыставлен - ПлатёжПроведён_Input
+        ПлатёжПроведён - ТранзакцияЗарегистрирована_Input
+    }
+
+    Process('Кредитование', Lending) {
+        DomainEvent('Кредит Одобрен', КредитОдобрен, $Command('Одобрить кредит'), $Aggregate($credit), $Policy('При пройденном скоринге одобрить кредит'), $ReadModel('Скоринговый балл'))
+    }
+
+    Settlements -[hidden]--- Lending
+}
+
+!endsub
+
+!startsub InternalOps
+
+SubDomain('Внутреннее управление', InternalOps) {
+
+    Process('Учёт ТМЦ', InventoryProcess) {
+        DomainEvent('Заявка На ТМЦ Создана', ЗаявкаНаТМЦСоздана, $Command('Создать заявку на ТМЦ'), $Aggregate($request), $User($operator))
+        DomainEvent('Инвентарь Списан', ИнвентарьСписан, $Command('Списать инвентарь'), $Aggregate($inventory), $User($operator))
+
+        ЗаявкаНаТМЦСоздана - ИнвентарьСписан_Input
+    }
+
+    Process('Управление персоналом', StaffProcess) {
+        DomainEvent('Персонал Назначен', ПерсоналНазначен, $Command('Назначить персонал'), $Aggregate($schedule), $User($operator))
+    }
+
+    InventoryProcess -[hidden]--- StaffProcess
+}
+
+!endsub
+
+!startsub Analytics
+
+SubDomain('Аналитика и отчётность', Analytics) {
+
+    Process('Потоковые витрины', DataMarts) {
+        DomainEvent('Витрина Обновлена', ВитринаОбновлена, $Command('Обновить витрину'), $Aggregate($dataset), $Policy('При поступлении событий доменов обновить витрину'), $ReadModel('Обезличенные факты, без медкарт'))
+    }
+
+    Process('Отчётность', Reporting) {
+        DomainEvent('Отчёт Сформирован', ОтчётСформирован, $Command('Сформировать отчёт'), $Aggregate($dataset), $User($analyst), $ReadModel('Конструктор отчёта, уровень доступа'))
+    }
+
+    ВитринаОбновлена - ОтчётСформирован_Input
+}
+
+!endsub
+
+!startsub DataGovernance
+
+SubDomain('Управление данными', DataGovernance) {
+
+    Process('Схемы и контракты', SchemasAndContracts) {
+        DomainEvent('Схема Зарегистрирована', СхемаЗарегистрирована, $Command('Зарегистрировать схему'), $Aggregate($schema), $User($dataSteward))
+        DomainEvent('Контракт Изменён', КонтрактИзменён, $Command('Изменить контракт данных'), $Aggregate($contract), $User($dataSteward), $Policy('Изменение схемы обратно совместимо или новая мажорная версия'))
+
+        СхемаЗарегистрирована -[hidden] КонтрактИзменён_Input
+    }
+}
+
+!endsub
+
+!startsub CrossContext
+
+' Межконтекстные связи (через шины событий, см. каталог доменных событий)
+
+' Шина медицинских данных -> Финтех, Внутреннее управление
+МедУслугаОказана --> СчётВыставлен_Input
+НазначениеСоздано --> ЗаявкаНаТМЦСоздана_Input
+
+' Шина финансовых событий -> Аналитика
+СчётВыставлен --> ВитринаОбновлена_Input
+ПлатёжПроведён --> ВитринаОбновлена_Input
+
+' Шина событий внутреннего управления -> Финтех, Аналитика
+ЗаявкаНаТМЦСоздана --> СчётВыставлен_Input
+ИнвентарьСписан --> ВитринаОбновлена_Input
+ПерсоналНазначен --> ВитринаОбновлена_Input
+
+' Раскладка доменов
+MedicalData -[hidden]--- Fintech
+Fintech -[hidden]--- InternalOps
+InternalOps -[hidden]--- Analytics
+Analytics -[hidden]--- DataGovernance
+
+!endsub
+
+@enduml
