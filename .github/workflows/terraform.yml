@@ -5,6 +5,7 @@ on:
     branches: [ future-2.0 ]
     paths:
     - 'task-2/**'
+    - '.github/workflows/**'
   workflow_dispatch:
 
 concurrency:
