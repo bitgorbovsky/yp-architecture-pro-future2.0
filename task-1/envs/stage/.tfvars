@@ -1,0 +1,10 @@
+vm_name = "services-stage"
+vm_cpus = 2
+vm_ram = 2
+disk_type = "network-ssd"
+zone = "ru-central1-d"
+disk_size = 15
+network_subnet = "foo"
+network_nat = true
+image_family = "ubuntu-2204-lts"
+ssh_pubkey = "./ssh/id_rsa.pub"

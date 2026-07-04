@@ -1,0 +1,9 @@
+.terraform
+.terraform.lock.hcl
+.env
+.terraform.tfstate.lock.info
+terraform.tfstate
+terraform.tfstate.backup
+*.bkp
+.obsidian
+ssh.local
